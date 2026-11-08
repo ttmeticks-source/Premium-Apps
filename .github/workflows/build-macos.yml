@@ -1,4 +1,4 @@
-name: Build macOS app
+name: Build and publish installers
 
 on:
   workflow_dispatch:
@@ -9,29 +9,71 @@ on:
       - "setup.py"
       - "scripts/**"
       - ".github/workflows/build-macos.yml"
+      - ".github/workflows/build-installers.yml"
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  macos:
     runs-on: macos-14
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install packaging tools
+      - name: Install build tools
         run: python -m pip install --upgrade pip py2app Pillow
-      - name: Create app icon
+      - name: Create icon
         run: python scripts/make_icon.py
-      - name: Build .app bundle
+      - name: Build app
         run: python setup.py py2app
-      - name: Zip app for download
+      - name: Package app
         run: ditto -c -k --sequesterRsrc --keepParent "dist/Premium Apps.app" "Premium-Apps-macOS.zip"
-      - name: Upload app bundle
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: Premium-Apps-macOS
+          name: macos-package
           path: Premium-Apps-macOS.zip
           if-no-files-found: error
-          retention-days: 30
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build tools
+        run: python -m pip install --upgrade pip pyinstaller Pillow
+      - name: Create icon
+        run: python scripts/make_icon.py
+      - name: Build executable
+        run: pyinstaller --onefile --windowed --name "Premium Apps" --icon PremiumApps.ico launcher.py
+      - name: Package executable
+        run: Compress-Archive -Path "dist/Premium Apps.exe" -DestinationPath "Premium-Apps-Windows.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: Premium-Apps-Windows.zip
+          if-no-files-found: error
+
+  publish:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Publish latest downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
+          gh release create latest \
+            "release-assets/Premium-Apps-macOS.zip" \
+            "release-assets/Premium-Apps-Windows.zip" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "Premium Apps - Latest" \
+            --notes "Latest macOS app and Windows executable. Download the ZIP for your platform."
