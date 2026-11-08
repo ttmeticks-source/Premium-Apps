@@ -4,11 +4,12 @@ APP = ["launcher.py"]
 OPTIONS = {
     "argv_emulation": False,
     "iconfile": "PremiumApps.icns",
+    "packages": ["customtkinter"],
     "plist": {
         "CFBundleName": "Premium Apps",
         "CFBundleDisplayName": "Premium Apps",
         "CFBundleIdentifier": "com.ttmeticks.premiumapps",
-        "CFBundleShortVersionString": "1.0.0",
+        "CFBundleShortVersionString": "1.1.0",
         "LSMinimumSystemVersion": "12.0",
         "NSHighResolutionCapable": True,
     },
@@ -19,4 +20,5 @@ setup(
     app=APP,
     options={"py2app": OPTIONS},
     setup_requires=["py2app"],
+    install_requires=["customtkinter"],
 )
