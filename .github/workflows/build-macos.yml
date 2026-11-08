@@ -9,7 +9,6 @@ on:
       - "setup.py"
       - "scripts/**"
       - ".github/workflows/build-macos.yml"
-      - ".github/workflows/build-installers.yml"
 
 permissions:
   contents: write
@@ -23,8 +22,8 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install build tools
-        run: python -m pip install --upgrade pip py2app Pillow
-      - name: Create icon
+        run: python -m pip install --upgrade pip py2app Pillow customtkinter
+      - name: Create app icon
         run: python scripts/make_icon.py
       - name: Build app
         run: python setup.py py2app
@@ -44,11 +43,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install build tools
-        run: python -m pip install --upgrade pip pyinstaller Pillow
-      - name: Create icon
+        run: python -m pip install --upgrade pip pyinstaller Pillow customtkinter
+      - name: Create app icon
         run: python scripts/make_icon.py
       - name: Build executable
-        run: pyinstaller --onefile --windowed --name "Premium Apps" --icon PremiumApps.ico launcher.py
+        run: pyinstaller --onefile --windowed --collect-all customtkinter --name "Premium Apps" --icon PremiumApps.ico launcher.py
       - name: Package executable
         run: Compress-Archive -Path "dist/Premium Apps.exe" -DestinationPath "Premium-Apps-Windows.zip"
       - uses: actions/upload-artifact@v4
