@@ -1,5 +1,6 @@
-# Premium-Apps [ONLY FOR MACBOOK,WINDOWS]
+# Premium-Apps
 
+[ONLY FOR MACBOOK,WINDOWS]
 
 Premium Apps
 
