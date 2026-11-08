@@ -48,6 +48,18 @@ We welcome contributions from the open-source community. If you encounter any bu
 Disclaimer: This project is strictly intended for educational, research, and personal customization purposes. It is not affiliated with, authorized, maintained, or endorsed by Spotify AB or any of its affiliates.
 
 
+Educational Purpose and Objectives
+
+Premium Apps is an open-source research initiative developed strictly for educational, security analysis, and network optimization purposes. The code within this repository serves as a practical demonstration of client-side asset filtering and modern user-interface customization.
+
+Why We Developed This Project
+
+• Network Analysis: To study how modern applications manage background web requests and data transfer protocols over local networks.
+• Asset Filtering: To demonstrate how client-side scripts can safely intercept and drop specific system network requests (like telemetry and advertisement elements) without modifying core server APIs.
+• Performance Optimization: To analyze the impact of ad-blocking routines on application resource allocation, showing how reducing background element loading lowers memory consumption and extends device battery life.
+• Security Awareness: To provide a transparent, readable alternative to the many "free premium" tools available online that contain hidden malware, trojans, or closed-source tracking software. By keeping this repository entirely open-source, we give users a safe environment to review clean code.
+This repository is maintained to encourage community learning, code audit practices, and open-source collaboration. It does not circumvent digital rights management (DRM) mechanisms, nor does it intercept secure server-side communications.
+
 ### License and Copyright
 
 Copyright (c) 2026 Premium Apps. All rights reserved.
