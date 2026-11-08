@@ -30,6 +30,7 @@ class PremiumApps:
         self.show_login()
 
     def clear(self):
+        self.root.unbind("<Return>")
         for child in self.root.winfo_children():
             child.destroy()
 
