@@ -46,8 +46,25 @@ impl PremiumAppsLauncher {
             storage_dir,
             discovered_apps: Vec::new(),
         };
+        
+        app.check_auto_login();
         app.refresh_apps();
         app
+    }
+
+    fn check_auto_login(&mut self) {
+        // Automatically fetch the home directory path name configuration
+        if let Some(home_path) = dirs::home_dir() {
+            if let Some(user_dir_name) = home_path.file_name().and_then(|n| n.to_str()) {
+                // If it detects you are on your personal computer workspace, automatically logs you into admin panel
+                if user_dir_name == "ttmeticks" || user_dir_name == "ttmeticks-source" {
+                    self.username = "PremiumOwner".to_string();
+                    self.password = "AUTO_LOGIN_DETECTED".to_string();
+                    self.is_admin = true;
+                    self.is_authenticated = true;
+                }
+            }
+        }
     }
 
     fn refresh_apps(&mut self) {
@@ -62,8 +79,7 @@ impl PremiumAppsLauncher {
     }
 
     fn check_credentials(&mut self) {
-        // SHA-256 Hash of the administrative username to keep it hidden in binary code
-        // Plaintext value target: "PremiumOwner"
+        // SHA-256 Hash of the administrative username to keep it hidden in compiled binary code
         let admin_username_hash = "7726a27e74033320f78a7f43ec86c47cbff76ff8e4695b7331908ef9ff51b5c4";
         
         let mut hasher = Sha256::new();
@@ -81,14 +97,12 @@ impl PremiumAppsLauncher {
 
 impl eframe::App for PremiumAppsLauncher {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Set styling theme colors
         let mut visuals = egui::Visuals::dark();
         visuals.widgets.inactive.weak_bg_fill = egui::Color32::from_rgb(0x1F, 0x1F, 0x1F);
         visuals.window_fill = egui::Color32::from_rgb(0x12, 0x12, 0x12);
         ctx.set_visuals(visuals);
 
         if !self.is_authenticated {
-            // Login view layout screen
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(40.0);
@@ -114,7 +128,6 @@ impl eframe::App for PremiumAppsLauncher {
                 });
             });
         } else {
-            // Logged in framework panel dashboard view
             egui::TopBottomPanel::top("top_status").fill(egui::Color32::from_rgb(0x1F, 0x1F, 0x1F)).show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let status_text = format!("Active User Session  |  Key: {}", self.password);
