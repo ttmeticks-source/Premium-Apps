@@ -46,3 +46,15 @@ Contributing and Support
 
 We welcome contributions from the open-source community. If you encounter any bugs, playback glitches, or unexpected behavior, please navigate to the Issues tab at the top of the page and open a new ticket with a description of the problem. If you would like to contribute code, feel free to fork the repository and submit a pull request.
 Disclaimer: This project is strictly intended for educational, research, and personal customization purposes. It is not affiliated with, authorized, maintained, or endorsed by Spotify AB or any of its affiliates.
+
+
+### License and Copyright
+
+Copyright (c) 2026 Premium Apps. All rights reserved.
+
+This project is open-source and licensed under the terms of the **MIT License**. 
+
+* **Permission to Use:** You are free to download, run, and modify this software for personal use.
+* **Distribution:** You may distribute this software, provided that the original copyright notice and this permission notice are included in all copies or substantial portions of the software.
+* **No Liability:** The software is provided "as is", without warranty of any kind. The authors are not liable for any claims, damages, or other liabilities.
+
