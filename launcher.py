@@ -87,7 +87,7 @@ class PremiumApps(ctk.CTk):
     def close(self):
         self.store.db.close(); self.destroy()
     def btn(self,parent,text,fn,kind="gold",width=150):
-        palette={"gold":(GOLD,HOVER,BLACK),"dark":(PANEL2,"#363B47",BLACK),
+        palette={"gold":(GOLD,HOVER,BLACK),"dark":("#D1D3DA","#E5E7EC",BLACK),
                  "red":(RED,"#F08080",BLACK),"green":(GREEN,"#79DBAA",BLACK)}
         fg,hover,txt=palette[kind]
         return ctk.CTkButton(parent,text=text,command=fn,width=width,height=42,corner_radius=14,
