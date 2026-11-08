@@ -37,22 +37,25 @@ The passwords are created on first launch and stored on that computer. This curr
 
 Member submissions remain **pending** until the owner approves them. The app performs only basic file-type warnings and records metadata; it does **not** contain an AI malware detector or antivirus engine. A warning-free file is not proof that an app is safe. Scan files with reputable security software and inspect the source before approving them. Do not run unknown programs just because they have been approved in this launcher.
 
-## Build from source
+## Build from source (developers only)
 
-Requires Python 3.11.
+End users do **not** need to install Python, CustomTkinter, Tcl/Tk, or any other dependency. The downloaded app/executable bundles its runtime and libraries.
+
+To rebuild on macOS:
 
 ```bash
-python -m pip install --upgrade customtkinter py2app Pillow
-python scripts/make_icon.py
-python setup.py py2app
+python3 -m pip install --upgrade pyinstaller Pillow customtkinter typing_extensions
+python3 scripts/make_icon.py
+pyinstaller --clean --noconfirm --windowed --name "Premium Apps" --icon PremiumApps.icns --osx-bundle-identifier com.ttmeticks.premiumapps --collect-all customtkinter --collect-all darkdetect --collect-all typing_extensions --collect-all packaging launcher.py
 ```
 
-On Windows, install the build tools with:
+The app bundle is created at `dist/Premium Apps.app`.
+
+To rebuild on Windows:
 
 ```powershell
-py -m pip install --upgrade customtkinter pyinstaller Pillow
+py -m pip install --upgrade pyinstaller Pillow customtkinter typing_extensions
 py scripts/make_icon.py
-py -m PyInstaller --onefile --windowed --collect-all customtkinter --name "Premium Apps" --icon PremiumApps.ico launcher.py
+py -m PyInstaller --clean --noconfirm --onefile --windowed --collect-all customtkinter --collect-all darkdetect --collect-all typing_extensions --collect-all packaging --name "Premium Apps" --icon PremiumApps.ico launcher.py
 ```
 
-Repository: https://github.com/ttmeticks-source/Premium-Apps
