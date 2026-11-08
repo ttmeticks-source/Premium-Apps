@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Premium Apps — lightweight macOS launcher. Uses only Python's standard library."""
 import os
+import platform
 import shutil
 import subprocess
 import tkinter as tk
@@ -141,7 +142,10 @@ class PremiumApps:
             return
         target = STORAGE / self.selected
         try:
-            subprocess.Popen(["open", str(target)])
+            if os.name == "nt":
+                os.startfile(str(target))
+            else:
+                subprocess.Popen(["open", str(target)])
         except Exception as exc:
             messagebox.showerror("Could not open item", str(exc))
 
