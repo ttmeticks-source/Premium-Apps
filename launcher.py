@@ -29,11 +29,12 @@ LIBRARY.mkdir(exist_ok=True)
 
 def make_hash(password, salt=None):
     salt = salt or os.urandom(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 240000)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600000)
     return salt.hex(), digest.hex()
 
-def check_hash(password, salt, expected):
-    return make_hash(password, bytes.fromhex(salt))[1] == expected
+def check_hash(password, salt, expected, iterations=600000):
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), iterations).hex()
+    return hashlib.compare_digest(digest, expected)
 
 class Store:
     def __init__(self):
@@ -41,30 +42,42 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.executescript("""
         CREATE TABLE IF NOT EXISTS config(k TEXT PRIMARY KEY,v TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS members(name TEXT PRIMARY KEY,banned INTEGER DEFAULT 0,joined TEXT DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS members(name TEXT PRIMARY KEY,password_salt TEXT,password_hash TEXT,banned INTEGER DEFAULT 0,joined TEXT DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS apps(id TEXT PRIMARY KEY,title TEXT,file TEXT,path TEXT,uploader TEXT,status TEXT,scan TEXT,created TEXT DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY,member TEXT,message TEXT,reply TEXT DEFAULT '',created TEXT DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS notices(id TEXT PRIMARY KEY,member TEXT,message TEXT,read INTEGER DEFAULT 0,created TEXT DEFAULT CURRENT_TIMESTAMP);
         """)
+        columns={row["name"] for row in self.db.execute("PRAGMA table_info(members)")}
+        if "password_salt" not in columns:
+            self.db.execute("ALTER TABLE members ADD COLUMN password_salt TEXT")
+        if "password_hash" not in columns:
+            self.db.execute("ALTER TABLE members ADD COLUMN password_hash TEXT")
         self.db.commit()
+        # The owner credential is stored as a salted PBKDF2 hash, never as plaintext.
+        self.set("owner_salt","2c08a0bfde51b914eaa105bba376d8fb")
+        self.set("owner_hash","c0dbb5f2894199f2338ef4ae8e2ff3dc7ffaaf22cc4a01d64c33c4cab0863997")
     def get(self,k):
         r=self.db.execute("SELECT v FROM config WHERE k=?",(k,)).fetchone()
         return r["v"] if r else ""
     def set(self,k,v):
         self.db.execute("INSERT INTO config VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",(k,v)); self.db.commit()
-    def configured(self):
-        return bool(self.get("owner_salt") and self.get("member_salt"))
-    def setup(self,owner,member):
-        a,b=make_hash(owner); c,d=make_hash(member)
-        for k,v in [("owner_salt",a),("owner_hash",b),("member_salt",c),("member_hash",d)]: self.set(k,v)
+    def owner_login(self,password):
+        return check_hash(password,self.get("owner_salt"),self.get("owner_hash"),600000)
+    def register(self,name,password):
+        exists=self.db.execute("SELECT 1 FROM members WHERE name=? COLLATE NOCASE",(name,)).fetchone()
+        if exists:
+            return False
+        salt,digest=make_hash(password)
+        self.db.execute("INSERT INTO members(name,password_salt,password_hash) VALUES(?,?,?)",(name,salt,digest))
+        self.db.commit()
+        return True
     def login(self,name,password):
-        if name.lower()=="premiumowner":
-            return "owner" if check_hash(password,self.get("owner_salt"),self.get("owner_hash")) else None
-        if not check_hash(password,self.get("member_salt"),self.get("member_hash")): return None
-        r=self.db.execute("SELECT banned FROM members WHERE name=?",(name,)).fetchone()
-        if r and r["banned"]: return "banned"
-        self.db.execute("INSERT OR IGNORE INTO members(name) VALUES(?)",(name,)); self.db.commit()
-        return "member"
+        r=self.db.execute("SELECT password_salt,password_hash,banned FROM members WHERE name=? COLLATE NOCASE",(name,)).fetchone()
+        if not r or not r["password_salt"] or not r["password_hash"]:
+            return None
+        if r["banned"]:
+            return "banned"
+        return "member" if check_hash(password,r["password_salt"],r["password_hash"]) else None
 
 def screening(path):
     flagged={".bat",".cmd",".ps1",".vbs",".js",".sh",".command",".scr",".msi"}
@@ -83,7 +96,7 @@ class PremiumApps(ctk.CTk):
             try: self.iconbitmap(str(icon))
             except tk.TclError: pass
         self.protocol("WM_DELETE_WINDOW",self.close)
-        self.setup_screen() if not self.store.configured() else self.login_screen()
+        self.login_screen()
     def close(self):
         self.store.db.close(); self.destroy()
     def btn(self,parent,text,fn,kind="gold",width=150):
@@ -107,27 +120,6 @@ class PremiumApps(ctk.CTk):
         f=ctk.CTkFrame(parent,fg_color=PANEL,corner_radius=18)
         f.pack(fill="x",padx=8,pady=7)
         return f
-    def setup_screen(self):
-        self.clear()
-        f=ctk.CTkFrame(self,fg_color=PANEL,corner_radius=24,border_width=1,border_color="#343741")
-        f.place(relx=.5,rely=.5,anchor="center")
-        ctk.CTkLabel(f,text="✦",text_color=GOLD,font=ctk.CTkFont(size=52,weight="bold")).pack(padx=48,pady=(26,0))
-        ctk.CTkLabel(f,text="PREMIUM APPS",text_color=GOLD,font=ctk.CTkFont(size=27,weight="bold")).pack()
-        ctk.CTkLabel(f,text="Create the owner login and one shared member password",text_color=MUTED).pack(pady=(5,18))
-        self.owner_pw=self.field(f,"Owner password (PremiumOwner)",True); self.owner_pw.pack(fill="x",padx=28,pady=6)
-        self.member_pw=self.field(f,"Shared password for ALL members",True); self.member_pw.pack(fill="x",padx=28,pady=6)
-        self.member_confirm=self.field(f,"Confirm shared member password",True); self.member_confirm.pack(fill="x",padx=28,pady=6)
-        ctk.CTkLabel(f,text="Members cannot change this password. Give the same password to every member.",text_color=MUTED,wraplength=360).pack(padx=25,pady=10)
-        self.btn(f,"SAVE SETUP",self.finish_setup,width=330).pack(padx=28,pady=(5,28))
-    def finish_setup(self):
-        a,b,c=self.owner_pw.get(),self.member_pw.get(),self.member_confirm.get()
-        if len(a)<10 or len(b)<10:
-            messagebox.showwarning("Password too short","Use at least 10 characters for each password."); return
-        if b!=c:
-            messagebox.showwarning("Does not match","Please confirm the shared member password."); return
-        self.store.setup(a,b)
-        messagebox.showinfo("Setup saved","Owner username: PremiumOwner\nAll other users share the member password.")
-        self.login_screen()
     def login_screen(self):
         self.clear()
         f=ctk.CTkFrame(self,fg_color=PANEL,corner_radius=24,border_width=1,border_color="#343741")
@@ -135,18 +127,75 @@ class PremiumApps(ctk.CTk):
         ctk.CTkLabel(f,text="✦",text_color=GOLD,font=ctk.CTkFont(size=54,weight="bold")).pack(padx=60,pady=(28,0))
         ctk.CTkLabel(f,text="PREMIUM APPS",text_color=GOLD,font=ctk.CTkFont(size=28,weight="bold")).pack()
         ctk.CTkLabel(f,text="Sign in to your library",text_color=MUTED).pack(pady=(4,20))
-        self.login_name=self.field(f,"Username"); self.login_name.pack(fill="x",padx=34,pady=6)
-        self.login_pw=self.field(f,"Password",True); self.login_pw.pack(fill="x",padx=34,pady=6)
+        self.login_name=self.field(f,"Username (leave blank for owner sign-in)")
+        self.login_name.pack(fill="x",padx=34,pady=6)
+        self.login_pw=self.field(f,"Password",True)
+        self.login_pw.pack(fill="x",padx=34,pady=6)
         self.btn(f,"SIGN IN",self.login,width=330).pack(fill="x",padx=34,pady=(16,8))
-        ctk.CTkLabel(f,text="Members all use the same shared password.",text_color=MUTED).pack(pady=(4,25))
+        self.btn(f,"CREATE ACCOUNT",self.signup_screen,"dark",330).pack(fill="x",padx=34,pady=(0,12))
+        ctk.CTkLabel(f,text="New members create their own username and password.",text_color=MUTED).pack(pady=(4,25))
         self.bind("<Return>",lambda e:self.login())
     def login(self):
         name,pw=self.login_name.get().strip(),self.login_pw.get()
-        if not name or not pw: messagebox.showwarning("Missing details","Enter both fields."); return
+        if not pw:
+            messagebox.showwarning("Missing password","Enter your password.")
+            return
+        if self.store.owner_login(pw):
+            self.unbind("<Return>")
+            self.user,self.role="Owner","owner"
+            self.dashboard()
+            return
+        if not name:
+            messagebox.showwarning("Missing username","Enter your account username.")
+            return
         role=self.store.login(name,pw)
-        if role=="banned": messagebox.showerror("Access denied","This member account has been banned."); return
-        if not role: messagebox.showerror("Sign-in failed","Username or password is incorrect."); return
-        self.unbind("<Return>"); self.user,self.role=name,role; self.dashboard()
+        if role=="banned":
+            messagebox.showerror("Access denied","This member account has been banned.")
+            return
+        if not role:
+            messagebox.showerror("Sign-in failed","Username or password is incorrect.")
+            return
+        self.unbind("<Return>")
+        self.user,self.role=name,role
+        self.dashboard()
+    def signup_screen(self):
+        self.clear()
+        f=ctk.CTkFrame(self,fg_color=PANEL,corner_radius=24,border_width=1,border_color="#343741")
+        f.place(relx=.5,rely=.5,anchor="center")
+        ctk.CTkLabel(f,text="✦",text_color=GOLD,font=ctk.CTkFont(size=48,weight="bold")).pack(padx=55,pady=(24,0))
+        ctk.CTkLabel(f,text="CREATE ACCOUNT",text_color=GOLD,font=ctk.CTkFont(size=25,weight="bold")).pack()
+        ctk.CTkLabel(f,text="Choose a username and your own private password.",text_color=MUTED,wraplength=340).pack(pady=(5,16))
+        self.signup_name=self.field(f,"Username (3–24 characters)")
+        self.signup_name.pack(fill="x",padx=30,pady=6)
+        self.signup_pw=self.field(f,"Create password (at least 10 characters)",True)
+        self.signup_pw.pack(fill="x",padx=30,pady=6)
+        self.signup_confirm=self.field(f,"Confirm password",True)
+        self.signup_confirm.pack(fill="x",padx=30,pady=6)
+        self.btn(f,"CREATE ACCOUNT",self.create_account,width=320).pack(fill="x",padx=30,pady=(15,8))
+        self.btn(f,"BACK TO SIGN IN",self.login_screen,"dark",320).pack(fill="x",padx=30,pady=(0,24))
+    def create_account(self):
+        name=self.signup_name.get().strip()
+        password=self.signup_pw.get()
+        confirm=self.signup_confirm.get()
+        if len(name)<3 or len(name)>24 or not all(ch.isalnum() or ch in "._-" for ch in name):
+            messagebox.showwarning("Invalid username","Use 3–24 letters, numbers, dots, underscores, or hyphens.")
+            return
+        if len(password)<10:
+            messagebox.showwarning("Password too short","Use at least 10 characters.")
+            return
+        if password!=confirm:
+            messagebox.showwarning("Passwords do not match","Please enter the same password in both fields.")
+            return
+        try:
+            created=self.store.register(name,password)
+        except sqlite3.IntegrityError:
+            created=False
+        if not created:
+            messagebox.showerror("Username unavailable","That username is already registered. Choose another.")
+            return
+        messagebox.showinfo("Account created","Your account has been created. Sign in with your username and password.")
+        self.login_screen()
+        self.login_name.insert(0,name)
     def dashboard(self):
         self.clear(); self.grid_columnconfigure(1,weight=1); self.grid_rowconfigure(0,weight=1)
         side=ctk.CTkFrame(self,width=218,corner_radius=0,fg_color="#17191F")
@@ -235,7 +284,7 @@ class PremiumApps(ctk.CTk):
             else: subprocess.Popen(["xdg-open",str(path.parent)])
         except Exception as e: messagebox.showerror("Could not open folder",str(e))
     def support_tab(self):
-        self.heading(self.content,"CONTACT SUPPORT","Send a message to PremiumOwner. Replies appear in Notifications.")
+        self.heading(self.content,"CONTACT SUPPORT","Send a message to support. Replies appear in Notifications.")
         f=self.card(self.content)
         self.message_box=ctk.CTkTextbox(f,height=210,corner_radius=12,fg_color=PANEL2,text_color=WHITE)
         self.message_box.pack(fill="both",expand=True,padx=18,pady=18)
@@ -277,7 +326,7 @@ class PremiumApps(ctk.CTk):
             self.store.db.execute("UPDATE notices SET read=1 WHERE id=?",(r["id"],))
         self.store.db.commit()
     def members_tab(self):
-        self.heading(self.content,"MEMBERS","Owner can ban or unban accounts. All members share one fixed password.")
+        self.heading(self.content,"MEMBERS","Registered accounts. Owner can ban or unban accounts.")
         area=self.scroll();rows=self.store.db.execute("SELECT * FROM members ORDER BY name COLLATE NOCASE").fetchall()
         if not rows:ctk.CTkLabel(area,text="No member accounts yet on this computer.",text_color=MUTED).pack(pady=35)
         for r in rows:
