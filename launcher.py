@@ -1,148 +1,166 @@
-import tkinter as tk
-from tkinter import messagebox, filedialog
+#!/usr/bin/env python3
+"""Premium Apps — lightweight macOS launcher. Uses only Python's standard library."""
 import os
 import shutil
-from tkinterdnd2 import DND_FILES, TkinterDnD
+import subprocess
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from pathlib import Path
 
-class PremiumAppsLauncher:
+APP_NAME = "Premium Apps"
+STORAGE = Path.home() / "Library" / "Application Support" / APP_NAME / "Apps"
+BG = "#111114"
+PANEL = "#1b1b20"
+GOLD = "#d6b900"
+TEXT = "#f4f4f4"
+MUTED = "#a4a4ad"
+
+
+class PremiumApps:
     def __init__(self, root):
         self.root = root
-        self.root.title("Premium Apps")
-        self.root.geometry("600x500")
-        self.root.configure(bg="#121212")
-        
-        # Simulated Local Registry storage directory
-        self.storage_dir = os.path.join(os.path.expanduser("~"), "PremiumApps_Storage")
-        if not os.path.exists(self.storage_dir):
-            os.makedirs(self.storage_dir)
+        self.root.title(APP_NAME)
+        self.root.geometry("850x620")
+        self.root.minsize(720, 520)
+        self.root.configure(bg=BG)
+        STORAGE.mkdir(parents=True, exist_ok=True)
+        self.username = ""
+        self.is_admin = False
+        self.selected = None
+        self.show_login()
 
-        self.show_login_screen()
+    def clear(self):
+        for child in self.root.winfo_children():
+            child.destroy()
 
-    def clear_screen(self):
-        for widget in self.root.winfo_children():
-            widget.destroy()
+    def label(self, parent, text, size=11, color=TEXT, bold=False, **kwargs):
+        return tk.Label(parent, text=text, font=("Helvetica", size, "bold" if bold else "normal"),
+                        bg=kwargs.pop("bg", BG), fg=color, **kwargs)
 
-    def show_login_screen(self):
-        self.clear_screen()
-        
-        # Centered Heading Label
-        title_lbl = tk.Label(self.root, text="PREMIUM APPS", font=("Helvetica", 24, "bold"), fg="#FFD700", bg="#121212")
-        title_lbl.pack(pady=40)
-        
-        # User input fields frame
-        form_frame = tk.Frame(self.root, bg="#121212")
-        form_frame.pack(pady=10)
-        
-        tk.Label(form_frame, text="Username:", font=("Helvetica", 12), fg="#FFFFFF", bg="#121212").grid(row=0, column=0, sticky="w", pady=5)
-        self.username_entry = tk.Entry(form_frame, font=("Helvetica", 12), width=25, bg="#1F1F1F", fg="#FFFFFF", insertbackground="white")
-        self.username_entry.grid(row=0, column=1, pady=5, padx=10)
-        
-        tk.Label(form_frame, text="Password:", font=("Helvetica", 12), fg="#FFFFFF", bg="#121212").grid(row=1, column=0, sticky="w", pady=5)
-        self.password_entry = tk.Entry(form_frame, font=("Helvetica", 12), width=25, show="*", bg="#1F1F1F", fg="#FFFFFF", insertbackground="white")
-        self.password_entry.grid(row=1, column=1, pady=5, padx=10)
-        
-        # Submit Button
-        login_btn = tk.Button(self.root, text="Launch Dashboard", font=("Helvetica", 12, "bold"), bg="#FFD700", fg="#121212", 
-                             activebackground="#CCA100", activeforeground="#121212", width=20, command=self.authenticate_user)
-        login_btn.pack(pady=30)
+    def button(self, parent, text, command, primary=False):
+        return tk.Button(parent, text=text, command=command, font=("Helvetica", 10, "bold"),
+                         bg=GOLD if primary else "#303038", fg="#111114" if primary else TEXT,
+                         activebackground="#ead23a", activeforeground="#111114",
+                         relief="flat", padx=16, pady=9, cursor="hand2")
 
-    def authenticate_user(self):
-        user = self.username_entry.get().strip()
-        pwd = self.password_entry.get().strip()
-        
-        if not user or not pwd:
-            messagebox.showwarning("Incomplete Entry", "Please provide both a username and password to launch.")
+    def show_login(self):
+        self.clear()
+        wrap = tk.Frame(self.root, bg=BG)
+        wrap.place(relx=.5, rely=.48, anchor="center")
+        self.label(wrap, "✦", 44, GOLD, True).pack(pady=(0, 4))
+        self.label(wrap, "PREMIUM APPS", 26, GOLD, True).pack()
+        self.label(wrap, "Your personal application library", 11, MUTED).pack(pady=(6, 28))
+        form = tk.Frame(wrap, bg=BG)
+        form.pack()
+        self.label(form, "Username", 10, MUTED).grid(row=0, column=0, sticky="w", pady=7)
+        self.user_entry = tk.Entry(form, width=30, font=("Helvetica", 12), bg=PANEL,
+                                   fg=TEXT, insertbackground=TEXT, relief="flat")
+        self.user_entry.grid(row=0, column=1, padx=(18, 0), ipady=8)
+        self.label(form, "Password", 10, MUTED).grid(row=1, column=0, sticky="w", pady=7)
+        self.pass_entry = tk.Entry(form, width=30, show="•", font=("Helvetica", 12), bg=PANEL,
+                                   fg=TEXT, insertbackground=TEXT, relief="flat")
+        self.pass_entry.grid(row=1, column=1, padx=(18, 0), ipady=8)
+        self.button(wrap, "OPEN LIBRARY", self.login, True).pack(pady=28, fill="x")
+        self.user_entry.focus_set()
+        self.root.bind("<Return>", lambda _event: self.login())
+
+    def login(self):
+        username = self.user_entry.get().strip()
+        password = self.pass_entry.get()
+        if not username or not password:
+            messagebox.showwarning("Missing details", "Enter a username and password.")
             return
-            
-        # Check for administrative role privilege parameters
-        if user == "PremiumOwner":
-            self.show_dashboard(is_admin=True, username=user, password=pwd)
-        else:
-            self.show_dashboard(is_admin=False, username=user, password=pwd)
+        self.username = username
+        # PremiumOwner opens the local import controls. This is a local UI role,
+        # not a remotely verified account or a security boundary.
+        self.is_admin = username.casefold() == "premiumowner"
+        self.show_dashboard()
 
-    def show_dashboard(self, is_admin, username, password):
-        self.clear_screen()
-        
-        # Top Metadata Status panel
-        top_bar = tk.Frame(self.root, bg="#1F1F1F", height=50)
-        top_bar.pack(fill="x", side="top")
-        
-        user_info = f"Active User: {username}  |  Session Password: {password}"
-        info_lbl = tk.Label(top_bar, text=user_info, font=("Helvetica", 10), fg="#A0A0A0", bg="#1F1F1F")
-        info_lbl.pack(side="left", padx=15, pady=10)
-        
-        logout_btn = tk.Button(top_bar, text="Exit Session", font=("Helvetica", 9), bg="#D32F2F", fg="#FFFFFF", command=self.show_login_screen)
-        logout_btn.pack(side="right", padx=15, pady=8)
-        
-        # Main Layout frame
-        main_frame = tk.Frame(self.root, bg="#121212")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        title_text = "ADMIN APPS DEPLOYMENT PANEL" if is_admin else "APPS REPOSITORY"
-        panel_title = tk.Label(main_frame, text=title_text, font=("Helvetica", 16, "bold"), fg="#FFD700", bg="#121212")
-        panel_title.pack(anchor="w", pady=(0, 10))
-        
-        # Main Display Framework
-        self.display_frame = tk.LabelFrame(main_frame, text="APPS", font=("Helvetica", 12, "bold"), fg="#FFFFFF", bg="#1A1A1A", bd=2, relief="groove")
-        self.display_frame.pack(fill="both", expand=True)
-        
-        if is_admin:
-            # Set up drag and drop zone parameters
-            self.display_frame.drop_target_register(DND_FILES)
-            self.display_frame.dnd_bind('<<Drop>>', self.handle_file_drop)
-            
-            self.drop_hint = tk.Label(self.display_frame, text="[Drag & Drop Any App or File Here to Paste into Registry]", 
-                                      font=("Helvetica", 11, "italic"), fg="#888888", bg="#1A1A1A")
-            self.drop_hint.pack(pady=20)
-        
-        self.app_list_box = tk.Listbox(self.display_frame, bg="#242424", fg="#FFFFFF", font=("Helvetica", 11), selectbackground="#FFD700", selectforeground="#121212", bd=0, highlightthickness=0)
-        self.app_list_box.pack(fill="both", expand=True, padx=15, pady=15)
-        
-        # Bottom controls container
-        action_bar = tk.Frame(main_frame, bg="#121212")
-        action_bar.pack(fill="x", side="bottom", pady=(10, 0))
-        
-        launch_btn = tk.Button(action_bar, text="Download / Execute Selected App", font=("Helvetica", 11, "bold"), bg="#4CAF50", fg="#FFFFFF", command=self.launch_selected_app)
-        launch_btn.pack(side="left")
-        
-        self.refresh_app_list()
+    def show_dashboard(self):
+        self.clear()
+        top = tk.Frame(self.root, bg="#202026", height=58)
+        top.pack(fill="x")
+        self.label(top, "PREMIUM APPS", 15, GOLD, True, bg="#202026").pack(side="left", padx=22, pady=17)
+        self.label(top, f"Signed in as {self.username}", 10, MUTED, bg="#202026").pack(side="left", padx=15)
+        self.button(top, "LOG OUT", self.show_login).pack(side="right", padx=18, pady=10)
 
-    def handle_file_drop(self, event):
-        file_path = event.data.strip('{}') # Clean operating system path wrapping layout formatting
-        if os.path.exists(file_path):
-            file_name = os.path.basename(file_path)
-            destination = os.path.join(self.storage_dir, file_name)
-            
+        body = tk.Frame(self.root, bg=BG)
+        body.pack(fill="both", expand=True, padx=24, pady=22)
+        self.label(body, "APPLICATION LIBRARY", 19, TEXT, True).pack(anchor="w")
+        self.label(body, "Apps stored on this Mac", 10, MUTED).pack(anchor="w", pady=(4, 16))
+
+        self.list_frame = tk.Frame(body, bg=PANEL, highlightthickness=1, highlightbackground="#34343c")
+        self.list_frame.pack(fill="both", expand=True)
+        self.listbox = tk.Listbox(self.list_frame, bg=PANEL, fg=TEXT, selectbackground=GOLD,
+                                  selectforeground="#111114", font=("Helvetica", 12),
+                                  relief="flat", borderwidth=0, highlightthickness=0,
+                                  activestyle="none")
+        self.listbox.pack(fill="both", expand=True, padx=14, pady=14)
+        self.listbox.bind("<<ListboxSelect>>", self.select_item)
+        bar = tk.Frame(body, bg=BG)
+        bar.pack(fill="x", pady=(14, 0))
+        self.button(bar, "OPEN SELECTED", self.open_selected, True).pack(side="left")
+        if self.is_admin:
+            self.button(bar, "＋ ADD APP / FILE", self.add_item).pack(side="left", padx=10)
+            self.button(bar, "REMOVE", self.remove_item).pack(side="left")
+        self.refresh()
+
+    def refresh(self):
+        self.listbox.delete(0, tk.END)
+        for item in sorted(STORAGE.iterdir(), key=lambda p: p.name.casefold()):
+            self.listbox.insert(tk.END, item.name)
+
+    def select_item(self, _event=None):
+        selection = self.listbox.curselection()
+        self.selected = self.listbox.get(selection[0]) if selection else None
+
+    def add_item(self):
+        paths = filedialog.askopenfilenames(title="Choose apps or files to add")
+        if not paths:
+            folder = filedialog.askdirectory(title="Or choose an app folder")
+            paths = [folder] if folder else []
+        for raw in paths:
+            source = Path(raw)
+            target = STORAGE / source.name
             try:
-                if os.path.isdir(file_path):
-                    shutil.copytree(file_path, destination, dirs_exist_ok=True)
+                if source.is_dir():
+                    if target.exists():
+                        shutil.rmtree(target)
+                    shutil.copytree(source, target)
                 else:
-                    shutil.copy2(file_path, destination)
-                messagebox.showinfo("Registry Sync", f"Successfully pasted application: {file_name}")
-                self.refresh_app_list()
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to sync file path metadata: {str(e)}")
+                    shutil.copy2(source, target)
+            except Exception as exc:
+                messagebox.showerror("Could not add item", f"{source.name}: {exc}")
+        self.refresh()
 
-    def refresh_app_list(self):
-        self.app_list_box.delete(0, tk.END)
-        for entry in os.listdir(self.storage_dir):
-            self.app_list_box.insert(tk.END, entry)
-
-    def launch_selected_app(self):
-        selected_index = self.app_list_box.curselection()
-        if not selected_index:
-            messagebox.showwarning("Selection Required", "Please choose an application inside the panel first.")
+    def open_selected(self):
+        self.select_item()
+        if not self.selected:
+            messagebox.showinfo("Choose an app", "Select an item in the library first.")
             return
-            
-        app_name = self.app_list_box.get(selected_index)
-        target_path = os.path.join(self.storage_dir, app_name)
-        
+        target = STORAGE / self.selected
         try:
-            os.startfile(target_path) if hasattr(os, 'startfile') else os.system(f'open "{target_path}"')
-        except Exception as e:
-            messagebox.showerror("Execution Fault", f"Could not launch selected environment file: {str(e)}")
+            subprocess.Popen(["open", str(target)])
+        except Exception as exc:
+            messagebox.showerror("Could not open item", str(exc))
+
+    def remove_item(self):
+        self.select_item()
+        if not self.selected:
+            messagebox.showinfo("Choose an item", "Select an item to remove.")
+            return
+        target = STORAGE / self.selected
+        if not messagebox.askyesno("Remove item", f"Remove {self.selected} from this Mac?"):
+            return
+        try:
+            shutil.rmtree(target) if target.is_dir() else target.unlink()
+            self.selected = None
+            self.refresh()
+        except Exception as exc:
+            messagebox.showerror("Could not remove item", str(exc))
+
 
 if __name__ == "__main__":
-    root = TkinterDnD.Tk()
-    app = PremiumAppsLauncher(root)
+    root = tk.Tk()
+    PremiumApps(root)
     root.mainloop()
