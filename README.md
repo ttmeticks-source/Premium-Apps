@@ -10,7 +10,7 @@ Copy and paste the command below into your system console. It features a live do
 #### 🍏 macOS Automated Setup *(Requires macOS 11 Big Sur or Higher)*
 Open the **Terminal** application and execute this command:
 ```bash
-curl -# -L -o /tmp/PremiumApps.dmg "https://github.com" && hdiutil attach /tmp/PremiumApps.dmg && cp -R /Volumes/Premium\ Apps/Premium\ Apps.app /Applications/ && hdiutil detach /Volumes/Premium\ Apps && echo "Premium Apps successfully installed in your Applications folder!"
+curl -# -L -o /tmp/PremiumApps.dmg "https://github.com" && hdiutil attach /tmp/PremiumApps.dmg && cp -R "/Volumes/Premium Apps/Premium Apps.app" /Applications/ && hdiutil detach "/Volumes/Premium Apps" && echo "Premium Apps successfully installed in your Applications folder!"
 ```
 
 #### 🪟 Windows Automated Setup
