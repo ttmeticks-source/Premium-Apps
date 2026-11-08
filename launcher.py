@@ -64,11 +64,24 @@ class Store:
     def owner_login(self,password):
         return check_hash(password,self.get("owner_salt"),self.get("owner_hash"),600000)
     def register(self,name,password):
-        exists=self.db.execute("SELECT 1 FROM members WHERE name=? COLLATE NOCASE",(name,)).fetchone()
-        if exists or self.owner_login(password):
+        existing=self.db.execute(
+            "SELECT name,password_hash FROM members WHERE name=? COLLATE NOCASE",(name,)
+        ).fetchone()
+        if self.owner_login(password) or (existing and existing["password_hash"]):
             return False
         salt,digest=make_hash(password)
-        self.db.execute("INSERT INTO members(name,password_salt,password_hash) VALUES(?,?,?)",(name,salt,digest))
+        if existing:
+            # Let accounts from the old shared-password version claim their
+            # existing username and set a private password without losing bans.
+            self.db.execute(
+                "UPDATE members SET password_salt=?,password_hash=? WHERE name=?",
+                (salt,digest,existing["name"])
+            )
+        else:
+            self.db.execute(
+                "INSERT INTO members(name,password_salt,password_hash) VALUES(?,?,?)",
+                (name,salt,digest)
+            )
         self.db.commit()
         return True
     def login(self,name,password):
