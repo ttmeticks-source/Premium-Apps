@@ -22,11 +22,20 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install build tools
-        run: python -m pip install --upgrade pip py2app Pillow customtkinter
+        run: python -m pip install --upgrade pip pyinstaller Pillow customtkinter typing_extensions
       - name: Create app icon
         run: python scripts/make_icon.py
-      - name: Build app
-        run: python setup.py py2app
+      - name: Build self-contained macOS app
+        run: >-
+          pyinstaller --clean --noconfirm --windowed
+          --name "Premium Apps"
+          --icon PremiumApps.icns
+          --osx-bundle-identifier com.ttmeticks.premiumapps
+          --collect-all customtkinter
+          --collect-all darkdetect
+          --collect-all typing_extensions
+          --collect-all packaging
+          launcher.py
       - name: Package app
         run: ditto -c -k --sequesterRsrc --keepParent "dist/Premium Apps.app" "Premium-Apps-macOS.zip"
       - uses: actions/upload-artifact@v4
@@ -34,7 +43,6 @@ jobs:
           name: macos-package
           path: Premium-Apps-macOS.zip
           if-no-files-found: error
-
   windows:
     runs-on: windows-latest
     steps:
