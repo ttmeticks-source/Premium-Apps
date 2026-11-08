@@ -4,7 +4,7 @@
 This release stores accounts, apps, reports and notifications locally on this
 computer. A hosted backend is required to share them between different devices.
 """
-import os, sys, uuid, shutil, sqlite3, hashlib, subprocess
+import os, sys, uuid, shutil, sqlite3, hashlib, hmac, subprocess
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -34,7 +34,7 @@ def make_hash(password, salt=None):
 
 def check_hash(password, salt, expected, iterations=600000):
     digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), iterations).hex()
-    return hashlib.compare_digest(digest, expected)
+    return hmac.compare_digest(digest, expected)
 
 class Store:
     def __init__(self):
@@ -65,7 +65,7 @@ class Store:
         return check_hash(password,self.get("owner_salt"),self.get("owner_hash"),600000)
     def register(self,name,password):
         exists=self.db.execute("SELECT 1 FROM members WHERE name=? COLLATE NOCASE",(name,)).fetchone()
-        if exists:
+        if exists or self.owner_login(password):
             return False
         salt,digest=make_hash(password)
         self.db.execute("INSERT INTO members(name,password_salt,password_hash) VALUES(?,?,?)",(name,salt,digest))
