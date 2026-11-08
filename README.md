@@ -26,6 +26,8 @@ $z="$env:TEMP\Premium-Apps-Windows.zip"; $d="$env:LOCALAPPDATA\Programs\Premium 
 
 Every member account has its own password. Passwords are stored as salted PBKDF2 hashes, not as readable text. There is no shared member password.
 
+If you already had an account in the previous shared-password version on this computer, use **CREATE ACCOUNT** with that same username to set your new individual password.
+
 The owner signs in separately using the private owner password. The owner username is not shown in the sign-in instructions or member-facing screens.
 
 ## Owner tools
