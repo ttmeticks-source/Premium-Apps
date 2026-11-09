@@ -7,7 +7,7 @@ Premium Apps is a desktop app for macOS and Windows. Downloads include the runti
 Paste this into Terminal. It automatically detects the Mac's processor and downloads the matching app:
 
 ```bash
-arch="$(uname -m)"; case "$arch" in arm64) asset="Premium-Apps-macOS-AppleSilicon.zip" ;; x86_64) asset="Premium-Apps-macOS-Intel.zip" ;; *) echo "Unsupported Mac architecture: $arch"; exit 1 ;; esac; mkdir -p "$HOME/Applications" && curl -fL "https://github.com/ttmeticks-source/Premium-Apps/releases/download/latest/$asset" -o "$TMPDIR/Premium-Apps.zip" && ditto -x -k "$TMPDIR/Premium-Apps.zip" "$HOME/Applications" && open "$HOME/Applications/Premium Apps.app"
+curl -fL https://raw.githubusercontent.com/ttmeticks-source/Premium-Apps/main/scripts/install-macos.sh | bash
 ```
 
 ## Windows — one PowerShell command
@@ -16,7 +16,7 @@ arch="$(uname -m)"; case "$arch" in arm64) asset="Premium-Apps-macOS-AppleSilico
 $z="$env:TEMP\Premium-Apps-Windows.zip"; $d="$env:LOCALAPPDATA\Programs\Premium Apps"; Invoke-WebRequest "https://github.com/ttmeticks-source/Premium-Apps/releases/download/latest/Premium-Apps-Windows.zip" -OutFile $z; New-Item -ItemType Directory -Force $d | Out-Null; Expand-Archive $z $d -Force; Start-Process "$d\Premium Apps.exe"
 ```
 
-## Creating an account
+## Sign-in options\n\n- **Remember my account** saves only the username on this computer; it never saves the password.\n- **LOG OFF** signs out and returns to the sign-in screen.\n- The sign-in and app screens use a subtle starfield/galaxy background.\n- App downloads show a loading indicator while the files are being copied.\n\n## Creating an account
 
 1. Open Premium Apps.
 2. Select **CREATE ACCOUNT**.
