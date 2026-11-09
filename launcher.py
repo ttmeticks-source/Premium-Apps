@@ -189,6 +189,7 @@ class PremiumApps(ctk.CTk):
         self.user,self.role=name,role
         self.dashboard()
     def signup_screen(self):
+        self.unbind("<Return>")
         self.clear()
         f=ctk.CTkFrame(self,fg_color=PANEL,corner_radius=24,border_width=1,border_color="#343741")
         f.place(relx=.5,rely=.5,anchor="center")
@@ -203,6 +204,7 @@ class PremiumApps(ctk.CTk):
         self.signup_confirm.pack(fill="x",padx=30,pady=6)
         self.btn(f,"CREATE ACCOUNT",self.create_account,width=320).pack(fill="x",padx=30,pady=(15,8))
         self.btn(f,"BACK TO SIGN IN",self.login_screen,"dark",320).pack(fill="x",padx=30,pady=(0,24))
+        self.bind("<Return>",lambda e:self.create_account())
     def create_account(self):
         name=self.signup_name.get().strip()
         password=self.signup_pw.get()
