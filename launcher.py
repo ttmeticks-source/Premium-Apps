@@ -151,7 +151,6 @@ class PremiumApps(ctk.CTk):
     def galaxy_background(self):
         canvas=tk.Canvas(self,bg="#070914",highlightthickness=0)
         canvas.place(x=0,y=0,relwidth=1,relheight=1)
-        canvas.lower()
         w=max(self.winfo_width(),1000); h=max(self.winfo_height(),700)
         for x,y,rx,ry,color in [(w*.72,h*.18,430,230,"#17143A"),(w*.18,h*.78,360,220,"#101F3A"),(w*.52,h*.62,260,150,"#24153B")]:
             for scale,stipple in [(1.0,"gray25"),(.72,"gray25"),(.42,"gray50")]:
