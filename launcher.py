@@ -4,7 +4,7 @@
 This release stores accounts, apps, reports and notifications locally on this
 computer. A hosted backend is required to share them between different devices.
 """
-import os, sys, uuid, shutil, sqlite3, hashlib, hmac, subprocess
+import os, sys, uuid, shutil, sqlite3, hashlib, hmac, subprocess, threading, random
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -148,8 +148,24 @@ class PremiumApps(ctk.CTk):
         ctk.CTkLabel(f,text=str(value),text_color=accent,
             font=ctk.CTkFont(size=25,weight="bold")).pack(anchor="w",padx=15,pady=(0,12))
         return f
+    def galaxy_background(self):
+        canvas=tk.Canvas(self,bg="#070914",highlightthickness=0)
+        canvas.place(x=0,y=0,relwidth=1,relheight=1)
+        canvas.lower()
+        w=max(self.winfo_width(),1000); h=max(self.winfo_height(),700)
+        for x,y,rx,ry,color in [(w*.72,h*.18,430,230,"#17143A"),(w*.18,h*.78,360,220,"#101F3A"),(w*.52,h*.62,260,150,"#24153B")]:
+            for scale,stipple in [(1.0,"gray25"),(.72,"gray25"),(.42,"gray50")]:
+                canvas.create_oval(x-rx*scale,y-ry*scale,x+rx*scale,y+ry*scale,fill=color,outline="",stipple=stipple)
+        rng=random.Random(27)
+        for _ in range(210):
+            x=rng.randint(0,w); y=rng.randint(0,h); r=rng.choice([1,1,1,2])
+            canvas.create_oval(x-r,y-r,x+r,y+r,fill=rng.choice(["#65739C","#AAB7E8","#D6DDFB","#FFFFFF"]),outline="")
+    def logout(self):
+        self.user=""; self.role=""
+        self.login_screen()
     def login_screen(self):
         self.clear()
+        self.galaxy_background()
         f=ctk.CTkFrame(self,fg_color=PANEL,corner_radius=24,border_width=1,border_color="#343741")
         f.place(relx=.5,rely=.5,anchor="center")
         ctk.CTkLabel(f,text="✦",text_color=GOLD,font=ctk.CTkFont(size=58,weight="bold")).pack(padx=74,pady=(30,0))
@@ -160,7 +176,14 @@ class PremiumApps(ctk.CTk):
         self.login_name.pack(fill="x",padx=36,pady=7)
         self.login_pw=self.field(f,"Password",True)
         self.login_pw.pack(fill="x",padx=36,pady=7)
-        self.btn(f,"SIGN IN",self.login,width=340).pack(fill="x",padx=36,pady=(18,8))
+        self.remember_var=tk.BooleanVar(value=bool(self.store.get("remember_username")))
+        remember=ctk.CTkCheckBox(f,text="Remember my account",variable=self.remember_var,
+            text_color=MUTED,fg_color=GOLD,hover_color=HOVER,border_color="#646B7A",
+            checkmark_color=BLACK,font=ctk.CTkFont(size=12))
+        remember.pack(anchor="w",padx=39,pady=(7,0))
+        if self.store.get("remember_username"):
+            self.login_name.insert(0,self.store.get("remember_username"))
+        self.btn(f,"SIGN IN",self.login,width=340).pack(fill="x",padx=36,pady=(15,8))
         self.btn(f,"CREATE ACCOUNT",self.signup_screen,"dark",340).pack(fill="x",padx=36,pady=(0,14))
         ctk.CTkLabel(f,text="Members use their own account credentials.",text_color=MUTED,
             font=ctk.CTkFont(size=11)).pack(pady=(3,27))
@@ -175,6 +198,7 @@ class PremiumApps(ctk.CTk):
                 messagebox.showerror("Sign-in failed","Username or password is incorrect.")
                 return
             self.unbind("<Return>")
+            self.store.set("remember_username",name if self.remember_var.get() else "")
             self.user,self.role="Owner","owner"
             self.dashboard()
             return
@@ -186,6 +210,7 @@ class PremiumApps(ctk.CTk):
             messagebox.showerror("Sign-in failed","Username or password is incorrect.")
             return
         self.unbind("<Return>")
+        self.store.set("remember_username",name if self.remember_var.get() else "")
         self.user,self.role=name,role
         self.dashboard()
     def signup_screen(self):
@@ -230,6 +255,7 @@ class PremiumApps(ctk.CTk):
         self.login_name.insert(0,name)
     def dashboard(self):
         self.clear()
+        self.galaxy_background()
         self.grid_columnconfigure(1,weight=1)
         self.grid_rowconfigure(0,weight=1)
         side=ctk.CTkFrame(self,width=230,corner_radius=0,fg_color="#15171D")
@@ -260,7 +286,7 @@ class PremiumApps(ctk.CTk):
             b.pack(padx=17,pady=4)
             self.nav_buttons[t]=b
         ctk.CTkFrame(side,fg_color="transparent").pack(expand=True,fill="both")
-        self.btn(side,"LOG OUT",self.login_screen,"red",194).pack(padx=17,pady=20)
+        self.btn(side,"LOG OFF",self.logout,"red",194).pack(padx=17,pady=20)
         main=ctk.CTkFrame(self,fg_color=BG,corner_radius=0)
         main.grid(row=0,column=1,sticky="nsew")
         main.grid_columnconfigure(0,weight=1)
@@ -354,21 +380,33 @@ class PremiumApps(ctk.CTk):
             return
         src=Path(row["path"])
         dst=Path(folder)/row["file"]
-        try:
-            if not src.exists():
-                raise FileNotFoundError("The stored app file could not be found.")
-            if dst.exists():
-                if not messagebox.askyesno("Replace existing item",
-                    f"{dst.name} already exists in that folder. Replace it?"):
-                    return
-                if dst.is_dir():
-                    shutil.rmtree(dst)
-                else:
-                    dst.unlink()
-            shutil.copytree(src,dst) if src.is_dir() else shutil.copy2(src,dst)
-            messagebox.showinfo("Download complete",f"Saved successfully to:\n{dst}")
-        except Exception as e:
-            messagebox.showerror("Download failed",str(e))
+        if not src.exists():
+            messagebox.showerror("Download failed","The stored app file could not be found.")
+            return
+        if dst.exists() and not messagebox.askyesno("Replace existing item",f"{dst.name} already exists. Replace it?"):
+            return
+        progress=ctk.CTkToplevel(self)
+        progress.title("Downloading app"); progress.geometry("420x175"); progress.resizable(False,False)
+        progress.configure(fg_color=BG); progress.transient(self); progress.grab_set()
+        ctk.CTkLabel(progress,text="Preparing your download…",text_color=WHITE,font=ctk.CTkFont(size=17,weight="bold")).pack(pady=(25,8))
+        ctk.CTkLabel(progress,text=row["title"],text_color=MUTED).pack(pady=(0,12))
+        bar=ctk.CTkProgressBar(progress,width=340,mode="indeterminate",progress_color=GOLD,fg_color=PANEL2)
+        bar.pack(pady=8); bar.start()
+        def worker():
+            error=None
+            try:
+                if dst.exists():
+                    if dst.is_dir(): shutil.rmtree(dst)
+                    else: dst.unlink()
+                shutil.copytree(src,dst) if src.is_dir() else shutil.copy2(src,dst)
+            except Exception as exc: error=str(exc)
+            def finish():
+                if progress.winfo_exists():
+                    bar.stop(); progress.grab_release(); progress.destroy()
+                if error: messagebox.showerror("Download failed",error)
+                else: messagebox.showinfo("Download complete",f"Saved successfully to:\n{dst}")
+            self.after(0,finish)
+        threading.Thread(target=worker,daemon=True).start()
     def publish_tab(self):
         self.heading(self.content,"SUBMIT AN APP","Members can submit any app file or app folder for owner approval.")
         f=self.card(self.content)
